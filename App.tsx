@@ -160,7 +160,7 @@ const AppContent: React.FC = () => {
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === "lfelipegomes04032026") {
+    if (senhaDigitada === import.meta.env.VITE_ADMIN_PASSWORD) {
         setShowLogin(false);
         setShowAdmin(true);
         setPasswordInput("");
