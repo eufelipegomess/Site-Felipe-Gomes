@@ -1,17 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Safe environment variable access for Vite
-const getEnvVar = (key: string, fallback: string = ''): string => {
-  if (import.meta.env && import.meta.env[key]) {
-    return import.meta.env[key];
-  }
-  return fallback;
-};
-
-// Configure suas variáveis de ambiente no arquivo .env (ex: .env.local)
-// VITE_SUPABASE_URL=sua_url
-// VITE_SUPABASE_ANON_KEY=sua_chave
-const SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL', 'https://placeholder-project.supabase.co');
-const SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY', 'placeholder-key');
+const SUPABASE_URL = 'https://uoolgmgpfelnfwhokfii.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVvb2xnbWdwZmVsbmZ3aG9rZmlpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMTgyODEsImV4cCI6MjA4NjY5NDI4MX0.ZhYQLc-N-wM1nGcilliFD6yD6mS6xbSwO_VV_zKfEnc';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
