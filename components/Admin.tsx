@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Reorder, useDragControls } from 'framer-motion';
 import { CaseStudy, ContentBlock, Testimonial } from '../types';
-import { X, Image as ImageIcon, Type, Video, Plus, Save, Trash2, GripVertical, Upload, ArrowLeft, Edit2, Check, AlertCircle, Columns, Globe, Sparkles, Loader2, Quote, MessageSquare } from 'lucide-react';
+import { X, Image as ImageIcon, Type, Video, Plus, Save, Trash2, GripVertical, Upload, ArrowLeft, Edit2, Check, AlertCircle, Columns, Globe, Sparkles, Loader2, Quote, MessageSquare, CloudUpload } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 import { GoogleGenAI } from "@google/genai";
+import { supabase } from '../utils/supabaseClient';
+import { mapCaseToDB } from '../utils/db';
 
 interface AdminProps {
   cases: CaseStudy[];
@@ -11,9 +13,10 @@ interface AdminProps {
   testimonials: Testimonial[];
   setTestimonials: React.Dispatch<React.SetStateAction<Testimonial[]>>;
   onClose: () => void;
+  onUpdate: () => Promise<void>;
 }
 
-const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimonials, onClose }) => {
+const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimonials, onClose, onUpdate }) => {
   const [tab, setTab] = useState<'projects' | 'feedbacks'>('projects');
   
   // PROJECTS STATE
@@ -21,6 +24,7 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
   const [editingCase, setEditingCase] = useState<CaseStudy | null>(null);
   const [editLang, setEditLang] = useState<'pt' | 'en'>('pt');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   // PROJECT EDITOR FIELDS
@@ -250,11 +254,13 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
     }
   };
 
-  const saveProject = () => {
+  const saveProject = async () => {
       if (!title) {
           alert("O título é obrigatório.");
           return;
       }
+      setIsSaving(true);
+      
       const newCase: CaseStudy = {
           id: editingCase ? editingCase.id : `c${Date.now()}`,
           title,
@@ -266,19 +272,53 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
           category, industry, location, description, challenge,
           category_en: categoryEn, industry_en: industryEn, location_en: locationEn, description_en: descriptionEn, challenge_en: challengeEn
       };
+      
+      try {
+        const dbPayload = mapCaseToDB(newCase);
+        
+        if (editingCase) {
+             const { error } = await supabase
+                .from('cases')
+                .update(dbPayload)
+                .eq('id', editingCase.id);
+             if (error) throw error;
+        } else {
+             const { error } = await supabase
+                .from('cases')
+                .insert([dbPayload]);
+             if (error) throw error;
+        }
 
-      if (editingCase) {
-          setCases(prev => prev.map(c => c.id === editingCase.id ? newCase : c));
-      } else {
-          setCases(prev => [...prev, newCase]);
+        await onUpdate(); // Refresh the list in parent
+        setView('list');
+
+      } catch (error: any) {
+         console.error("Error saving project:", error);
+         alert(`Erro ao salvar: ${error.message}`);
+      } finally {
+         setIsSaving(false);
       }
-      setView('list');
   };
 
-  const handleDeleteClick = (id: string) => {
+  const handleDeleteClick = async (id: string) => {
       if (deleteConfirmId === id) {
-          setCases(prev => prev.filter(c => c.id !== id));
-          setDeleteConfirmId(null);
+          try {
+             setIsSaving(true);
+             const { error } = await supabase
+                .from('cases')
+                .delete()
+                .eq('id', id);
+             
+             if (error) throw error;
+             
+             await onUpdate();
+             setDeleteConfirmId(null);
+          } catch (error: any) {
+             console.error("Error deleting:", error);
+             alert(`Erro ao deletar: ${error.message}`);
+          } finally {
+             setIsSaving(false);
+          }
       } else {
           setDeleteConfirmId(id);
           setTimeout(() => setDeleteConfirmId(null), 3000);
@@ -305,7 +345,6 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
   };
 
   const handleFeedbackTranslate = async () => {
-    // Safe Env Access for API Key
     let apiKey = '';
     try {
         if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
@@ -344,11 +383,12 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
     }
   };
 
-  const saveFeedback = () => {
+  const saveFeedback = async () => {
       if (!fbAuthor || !fbText) {
           alert("Autor e Depoimento (PT) são obrigatórios.");
           return;
       }
+      setIsSaving(true);
       const newFb: Testimonial = {
           id: editingFeedback ? editingFeedback.id : `fb${Date.now()}`,
           author: fbAuthor,
@@ -356,19 +396,45 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
           text: fbText,
           text_en: fbTextEn
       };
+      
+      try {
+        if (editingFeedback) {
+             const { error } = await supabase
+                .from('testimonials')
+                .update(newFb)
+                .eq('id', editingFeedback.id);
+             if (error) throw error;
+        } else {
+             const { error } = await supabase
+                .from('testimonials')
+                .insert([newFb]);
+             if (error) throw error;
+        }
 
-      if (editingFeedback) {
-          setTestimonials(prev => prev.map(f => f.id === editingFeedback.id ? newFb : f));
-      } else {
-          setTestimonials(prev => [...prev, newFb]);
+        await onUpdate();
+        setFbView('list');
+      } catch (error: any) {
+        console.error("Error saving feedback:", error);
+        alert(`Erro ao salvar: ${error.message}`);
+      } finally {
+        setIsSaving(false);
       }
-      setFbView('list');
   };
 
-  const handleDeleteFeedback = (id: string) => {
+  const handleDeleteFeedback = async (id: string) => {
       if (fbDeleteConfirmId === id) {
-          setTestimonials(prev => prev.filter(f => f.id !== id));
-          setFbDeleteConfirmId(null);
+          try {
+             setIsSaving(true);
+             const { error } = await supabase.from('testimonials').delete().eq('id', id);
+             if (error) throw error;
+             
+             await onUpdate();
+             setFbDeleteConfirmId(null);
+          } catch (error: any) {
+             alert(`Erro ao deletar: ${error.message}`);
+          } finally {
+             setIsSaving(false);
+          }
       } else {
           setFbDeleteConfirmId(id);
           setTimeout(() => setFbDeleteConfirmId(null), 3000);
@@ -450,6 +516,7 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
                         <Plus size={18} /> CRIAR NOVO PROJETO
                     </button>
                 </div>
+                {isSaving && <div className="text-center py-4 text-[#8C6EB7] font-bold">Processando...</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {cases.map(project => (
                         <div key={project.id} className="border border-gray-200 rounded-[4px] overflow-hidden bg-white flex flex-col hover:shadow-lg transition-shadow">
@@ -465,8 +532,12 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
                                     <button onClick={() => startEdit(project)} className="flex-1 bg-[#F3EFF9] text-[#312E35] px-4 py-2 rounded-[4px] text-xs font-bold font-micro hover:bg-[#312E35] hover:text-white transition-colors flex items-center justify-center gap-2">
                                         <Edit2 size={14} /> EDITAR
                                     </button>
-                                    <button onClick={() => handleDeleteClick(project.id)} className={`px-3 py-2 rounded-[4px] transition-all duration-300 border flex items-center gap-2 font-bold font-micro text-xs ${deleteConfirmId === project.id ? 'bg-red-500 text-white' : 'bg-red-50 text-red-500'}`}>
-                                        <Trash2 size={16}/>
+                                    <button 
+                                        onClick={() => handleDeleteClick(project.id)} 
+                                        disabled={isSaving}
+                                        className={`px-3 py-2 rounded-[4px] transition-all duration-300 border flex items-center gap-2 font-bold font-micro text-xs ${deleteConfirmId === project.id ? 'bg-red-500 text-white' : 'bg-red-50 text-red-500'}`}
+                                    >
+                                        {deleteConfirmId === project.id && isSaving ? <Loader2 size={16} className="animate-spin"/> : <Trash2 size={16}/>}
                                     </button>
                                 </div>
                             </div>
@@ -485,6 +556,7 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
                         <Plus size={18} /> NOVO DEPOIMENTO
                     </button>
                 </div>
+                {isSaving && <div className="text-center py-4 text-[#8C6EB7] font-bold">Processando...</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {testimonials.map(fb => (
                         <div key={fb.id} className="border border-gray-200 rounded-[4px] bg-white p-6 hover:shadow-lg transition-shadow">
@@ -609,8 +681,13 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
                     </div>
                 </div>
                 <div className="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 p-4 md:px-8 flex justify-end items-center z-20 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
-                    <button onClick={saveProject} className="bg-[#312E35] text-white px-8 py-4 rounded-[4px] font-micro tracking-widest flex items-center gap-3 hover:bg-[#8C6EB7] transition-all transform active:scale-95 shadow-lg">
-                        <Save size={18}/> {editingCase ? 'SALVAR ALTERAÇÕES' : 'CRIAR PROJETO'}
+                    <button 
+                        onClick={saveProject} 
+                        disabled={isSaving}
+                        className="bg-[#312E35] text-white px-8 py-4 rounded-[4px] font-micro tracking-widest flex items-center gap-3 hover:bg-[#8C6EB7] transition-all transform active:scale-95 shadow-lg disabled:opacity-50"
+                    >
+                        {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>} 
+                        {isSaving ? 'SALVANDO...' : (editingCase ? 'SALVAR ALTERAÇÕES' : 'CRIAR PROJETO')}
                     </button>
                 </div>
             </div>
@@ -657,8 +734,12 @@ const Admin: React.FC<AdminProps> = ({ cases, setCases, testimonials, setTestimo
 
                 <div className="flex justify-end gap-4">
                      <button onClick={() => setFbView('list')} className="px-6 py-3 rounded-[4px] font-micro text-gray-500 hover:text-[#312E35] transition-colors">CANCELAR</button>
-                     <button onClick={saveFeedback} className="bg-[#312E35] text-white px-8 py-3 rounded-[4px] font-micro tracking-widest flex items-center gap-3 hover:bg-[#8C6EB7] transition-all shadow-lg">
-                        <Save size={18}/> SALVAR
+                     <button 
+                        onClick={saveFeedback} 
+                        disabled={isSaving}
+                        className="bg-[#312E35] text-white px-8 py-3 rounded-[4px] font-micro tracking-widest flex items-center gap-3 hover:bg-[#8C6EB7] transition-all shadow-lg disabled:opacity-50"
+                    >
+                        {isSaving ? <Loader2 size={18} className="animate-spin"/> : <Save size={18}/>} SALVAR
                     </button>
                 </div>
              </div>

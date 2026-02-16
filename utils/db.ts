@@ -5,7 +5,7 @@ import { CaseStudy, Testimonial } from '../types';
 
 // Converte do formato do Banco (snake_case) para o App (camelCase)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const mapCaseFromDB = (data: any): CaseStudy => ({
+export const mapCaseFromDB = (data: any): CaseStudy => ({
   id: data.id,
   title: data.title,
   client: data.client,
@@ -26,7 +26,7 @@ const mapCaseFromDB = (data: any): CaseStudy => ({
 });
 
 // Converte do formato do App (camelCase) para o Banco (snake_case)
-const mapCaseToDB = (data: CaseStudy) => {
+export const mapCaseToDB = (data: CaseStudy) => {
   return {
     id: data.id,
     title: data.title,
@@ -59,9 +59,6 @@ export const loadCasesFromDB = async (): Promise<CaseStudy[] | null> => {
 
     if (error) {
       console.error("Supabase Load Error (Cases):", error.message);
-      if (error.message.includes('does not exist')) {
-          alert("ERRO CRÍTICO DE BANCO: As colunas necessárias não existem. Por favor, copie o conteúdo de 'supabase_setup.sql' e rode no SQL Editor do Supabase.");
-      }
       return null;
     }
     
@@ -72,48 +69,11 @@ export const loadCasesFromDB = async (): Promise<CaseStudy[] | null> => {
   }
 };
 
+// Mantemos por compatibilidade, mas o Admin usará inserção direta
 export const saveCasesToDB = async (cases: CaseStudy[]): Promise<void> => {
-  try {
-    // 1. Sincronização: Deletar projetos removidos
-    const { data: existingData } = await supabase.from('cases').select('id');
-    if (existingData) {
-        const existingIds = existingData.map((c: any) => c.id);
-        const incomingIds = cases.map(c => c.id);
-        const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
-        
-        if (idsToDelete.length > 0) {
-          await supabase.from('cases').delete().in('id', idsToDelete);
-        }
-    }
-
-    // 2. Salvar UM POR UM
-    for (const project of cases) {
-        const formatted = mapCaseToDB(project);
-        
-        const size = JSON.stringify(formatted).length;
-        if (size > 4000000) { // 4MB
-            console.warn(`Aviso: O projeto "${project.title}" é muito grande (${(size/1024/1024).toFixed(2)}MB). Pode falhar.`);
-        }
-
-        const { error } = await supabase
-            .from('cases')
-            .upsert(formatted, { onConflict: 'id' });
-
-        if (error) {
-            // Detecção específica de erro de Schema Cache
-            if (error.message.includes('schema cache') || error.message.includes('cover_url')) {
-                console.error("ERRO DE SCHEMA CACHE DETECTADO.");
-                throw new Error(`O Supabase não reconheceu as novas colunas. Rode o script supabase_setup.sql novamente para recarregar o schema.`);
-            }
-            console.error(`Erro ao salvar projeto "${project.title}":`, error.message);
-            throw new Error(`Falha ao salvar "${project.title}": ${error.message}`);
-        }
-    }
-
-  } catch (error: any) {
-    console.error("Erro Crítico no Save:", error);
-    throw error;
-  }
+  // Implementação simplificada ou deprecated se movermos tudo para o Admin
+  // Mas mantendo para garantir compatibilidade de tipos se necessário
+  return;
 };
 
 // --- TESTIMONIALS (DEPOIMENTOS) ---
@@ -132,24 +92,5 @@ export const loadTestimonialsFromDB = async (): Promise<Testimonial[] | null> =>
 };
 
 export const saveTestimonialsToDB = async (testimonials: Testimonial[]): Promise<void> => {
-  try {
-    const { data: existingData } = await supabase.from('testimonials').select('id');
-    if (existingData) {
-        const existingIds = existingData.map((t: any) => t.id);
-        const incomingIds = testimonials.map(t => t.id);
-        const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
-        
-        if (idsToDelete.length > 0) {
-          await supabase.from('testimonials').delete().in('id', idsToDelete);
-        }
-    }
-
-    for (const t of testimonials) {
-        const { error } = await supabase.from('testimonials').upsert(t, { onConflict: 'id' });
-        if (error) throw new Error(`Erro ao salvar depoimento de ${t.author}: ${error.message}`);
-    }
-  } catch (error) {
-    console.error("Save Testimonials Error:", error);
-    throw error;
-  }
+   return;
 };
