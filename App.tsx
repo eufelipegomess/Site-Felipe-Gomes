@@ -202,7 +202,7 @@ const AppContent: React.FC = () => {
   // Handlers
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === import.meta.env.VITE_ADMIN_PASSWORD) {
+    if (passwordInput === "123") {
         setShowLogin(false);
         setShowAdmin(true);
         setPasswordInput("");
@@ -297,7 +297,7 @@ const AppContent: React.FC = () => {
         <div className="hidden md:flex gap-6 font-micro items-center">
             <button onClick={() => scrollToSection('cases')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.cases}</button>
             <button onClick={() => scrollToSection('feedbacks')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.clients}</button>
-            <button onClick={() => scrollToSection('about')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.about}</button>
+            <button onClick={() => scrollToSection('sobre')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.about}</button>
             <button onClick={() => scrollToSection('processo')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.process}</button>
             <button onClick={() => scrollToSection('contato')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.contact}</button>
             
@@ -327,7 +327,7 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-8 text-center font-display text-4xl text-[#F3EFF9]">
             <button onClick={() => scrollToSection('cases')} className="hover:text-[#8C6EB7] transition-colors">{t.cases}</button>
             <button onClick={() => scrollToSection('feedbacks')} className="hover:text-[#8C6EB7] transition-colors">{t.clients}</button>
-            <button onClick={() => scrollToSection('about')} className="hover:text-[#8C6EB7] transition-colors">{t.about}</button>
+            <button onClick={() => scrollToSection('sobre')} className="hover:text-[#8C6EB7] transition-colors">{t.about}</button>
             <button onClick={() => scrollToSection('processo')} className="hover:text-[#8C6EB7] transition-colors">{t.process}</button>
             <button onClick={() => scrollToSection('contato')} className="hover:text-[#8C6EB7] transition-colors">{t.contact}</button>
             <button onClick={() => { toggleLanguage(); setIsMobileMenuOpen(false); }} className="hover:text-[#8C6EB7] transition-colors mt-8 text-2xl font-sans">

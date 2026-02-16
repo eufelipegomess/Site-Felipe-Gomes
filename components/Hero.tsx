@@ -89,7 +89,7 @@ const Hero: React.FC = () => {
 
       {/* Right Side: Copy */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-6 md:px-16 lg:px-24 py-20 lg:py-32 order-2 relative z-10">
-        <h1 ref={titleRef} className="font-display text-5xl md:text-7xl lg:text-8xl xl:text-8.5xl text-[#312E35] mb-10 leading-[0.85] tracking-tight">
+        <h1 ref={titleRef} className="font-display text-5xl md:text-7xl lg:text-8xl xl:text-9xl text-[#312E35] mb-10 leading-[0.85] tracking-tight">
           {t.title_1} <br className="hidden md:block" /> <span className="text-[#8C6EB7] whitespace-nowrap">{t.title_2}</span><br/>
           {t.title_3} <br/>{t.title_4}
         </h1>
@@ -112,7 +112,7 @@ const Hero: React.FC = () => {
                   relative rounded-[4px] border border-[#312E35] overflow-hidden transition-all duration-500 ease-out
                   flex items-center justify-center group w-[56px] h-[56px]
                   active:bg-[#312E35]
-                  ${isArrowHovered ? 'w-[180px] bg-[#312E35]' : 'bg-transparent'}
+                  ${isArrowHovered ? 'w-[200px] bg-[#312E35]' : 'bg-transparent'}
                 `}
              >
                 <div className={`
