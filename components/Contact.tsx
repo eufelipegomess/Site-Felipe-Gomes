@@ -11,6 +11,7 @@ const Contact: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     company: '',
+    phone: '',
     time: '',
     segment: '',
     email: '',
@@ -34,6 +35,7 @@ const Contact: React.FC = () => {
     // Campos Visíveis
     formPayload.append('Nome', formData.name);
     formPayload.append('Empresa', formData.company);
+    formPayload.append('Telefone', formData.phone);
     formPayload.append('Tempo de Mercado', formData.time);
     formPayload.append('Segmento', formData.segment);
     formPayload.append('Email', formData.email);
@@ -68,7 +70,7 @@ const Contact: React.FC = () => {
 
   const handleSuccess = () => {
     setStatus('success');
-    setFormData({ name: '', company: '', time: '', segment: '', email: '', about: '' });
+    setFormData({ name: '', company: '', phone: '', time: '', segment: '', email: '', about: '' });
     setTimeout(() => setStatus('idle'), 6000);
   };
 
@@ -132,16 +134,29 @@ const Contact: React.FC = () => {
             </div>
           </div>
           
-          <div className="group relative">
-             <label className="font-micro text-[#716C7A] block mb-2">{t.form.email} *</label>
-             <input 
-               required
-               type="email" 
-               name="email"
-               value={formData.email}
-               onChange={handleChange}
-               className="w-full bg-transparent border-b border-[#ACA4BC] py-2 text-xl text-[#312E35] focus:outline-none focus:border-[#8C6EB7] transition-colors" 
-             />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="group relative">
+               <label className="font-micro text-[#716C7A] block mb-2">{t.form.email} *</label>
+               <input 
+                 required
+                 type="email" 
+                 name="email"
+                 value={formData.email}
+                 onChange={handleChange}
+                 className="w-full bg-transparent border-b border-[#ACA4BC] py-2 text-xl text-[#312E35] focus:outline-none focus:border-[#8C6EB7] transition-colors" 
+               />
+            </div>
+            <div className="group relative">
+               <label className="font-micro text-[#716C7A] block mb-2">{t.form.phone} *</label>
+               <input 
+                 required
+                 type="tel" 
+                 name="phone"
+                 value={formData.phone}
+                 onChange={handleChange}
+                 className="w-full bg-transparent border-b border-[#ACA4BC] py-2 text-xl text-[#312E35] focus:outline-none focus:border-[#8C6EB7] transition-colors" 
+               />
+            </div>
           </div>
 
           <div className="group relative">

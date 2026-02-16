@@ -60,6 +60,7 @@ export const TRANSLATIONS = {
       form: {
         name: 'Seu Nome',
         company: 'Empresa',
+        phone: 'Telefone / WhatsApp',
         time: 'Tempo no Mercado',
         segment: 'Segmento de Atuação',
         email: 'Email',
@@ -139,6 +140,7 @@ export const TRANSLATIONS = {
       form: {
         name: 'Your Name',
         company: 'Company',
+        phone: 'Phone / WhatsApp',
         time: 'Time in Market',
         segment: 'Business Segment',
         email: 'Email',
