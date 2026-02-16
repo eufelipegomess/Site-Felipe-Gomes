@@ -110,9 +110,9 @@ const Hero: React.FC = () => {
                 onMouseLeave={() => setIsArrowHovered(false)}
                 className={`
                   relative rounded-[4px] border border-[#312E35] overflow-hidden transition-all duration-500 ease-out
-                  flex items-center justify-center group w-[56px] h-[56px]
+                  flex items-center justify-center group h-[56px]
                   active:bg-[#312E35]
-                  ${isArrowHovered ? 'w-[200px] bg-[#312E35]' : 'bg-transparent'}
+                  ${isArrowHovered ? 'w-[220px] bg-[#312E35]' : 'w-[56px] bg-transparent'}
                 `}
              >
                 <div className={`
