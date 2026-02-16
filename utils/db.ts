@@ -1,7 +1,52 @@
 import { supabase } from './supabaseClient';
 import { CaseStudy, Testimonial } from '../types';
 
-// Não precisamos mais do initDB pois o cliente Supabase gerencia a conexão
+// --- MAPPING HELPERS ---
+
+// Converte do formato do Banco (snake_case) para o App (camelCase)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const mapCaseFromDB = (data: any): CaseStudy => ({
+  id: data.id,
+  title: data.title,
+  client: data.client,
+  year: data.year,
+  coverUrl: data.cover_url || '',
+  category: data.category,
+  industry: data.industry,
+  location: data.location,
+  description: data.description,
+  challenge: data.challenge,
+  category_en: data.category_en,
+  industry_en: data.industry_en,
+  location_en: data.location_en,
+  description_en: data.description_en,
+  challenge_en: data.challenge_en,
+  blocks: Array.isArray(data.blocks) ? data.blocks : [],
+  order: data.sort_order // Mapeia de volta para 'order'
+});
+
+// Converte do formato do App (camelCase) para o Banco (snake_case)
+const mapCaseToDB = (data: CaseStudy) => {
+  return {
+    id: data.id,
+    title: data.title,
+    client: data.client,
+    year: data.year,
+    cover_url: data.coverUrl,
+    category: data.category,
+    industry: data.industry,
+    location: data.location,
+    description: data.description,
+    challenge: data.challenge,
+    category_en: data.category_en,
+    industry_en: data.industry_en,
+    location_en: data.location_en,
+    description_en: data.description_en,
+    challenge_en: data.challenge_en,
+    blocks: data.blocks, 
+    sort_order: data.order // Salva em 'sort_order'
+  };
+};
 
 // --- CASES (PROJETOS) ---
 
@@ -10,46 +55,63 @@ export const loadCasesFromDB = async (): Promise<CaseStudy[] | null> => {
     const { data, error } = await supabase
       .from('cases')
       .select('*')
-      .order('order', { ascending: true });
+      .order('sort_order', { ascending: true });
 
     if (error) {
-      console.error("Supabase Load Error:", error);
+      console.error("Supabase Load Error (Cases):", error.message);
+      if (error.message.includes('does not exist')) {
+          alert("ERRO CRÍTICO DE BANCO: As colunas necessárias não existem. Por favor, copie o conteúdo de 'supabase_setup.sql' e rode no SQL Editor do Supabase.");
+      }
       return null;
     }
-    return data as CaseStudy[];
+    
+    return (data || []).map(mapCaseFromDB);
   } catch (error) {
-    console.error("Connection Error:", error);
+    console.error("Connection Error (Cases):", error);
     return null;
   }
 };
 
 export const saveCasesToDB = async (cases: CaseStudy[]): Promise<void> => {
   try {
-    // Para manter a sincronização perfeita com o estado local (deletar o que não existe mais),
-    // primeiro vamos pegar todos os IDs existentes no banco.
+    // 1. Sincronização: Deletar projetos removidos
     const { data: existingData } = await supabase.from('cases').select('id');
-    const existingIds = existingData?.map(c => c.id) || [];
-    
-    const incomingIds = cases.map(c => c.id);
-    
-    // Identificar IDs para deletar (existem no banco mas não no estado local)
-    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
-    
-    if (idsToDelete.length > 0) {
-      await supabase.from('cases').delete().in('id', idsToDelete);
-    }
-
-    // Upsert (Inserir ou Atualizar) os dados atuais
-    if (cases.length > 0) {
-      const { error } = await supabase
-        .from('cases')
-        .upsert(cases, { onConflict: 'id' });
+    if (existingData) {
+        const existingIds = existingData.map((c: any) => c.id);
+        const incomingIds = cases.map(c => c.id);
+        const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
         
-      if (error) throw error;
+        if (idsToDelete.length > 0) {
+          await supabase.from('cases').delete().in('id', idsToDelete);
+        }
     }
 
-  } catch (error) {
-    console.error("Supabase Save Error:", error);
+    // 2. Salvar UM POR UM
+    for (const project of cases) {
+        const formatted = mapCaseToDB(project);
+        
+        const size = JSON.stringify(formatted).length;
+        if (size > 4000000) { // 4MB
+            console.warn(`Aviso: O projeto "${project.title}" é muito grande (${(size/1024/1024).toFixed(2)}MB). Pode falhar.`);
+        }
+
+        const { error } = await supabase
+            .from('cases')
+            .upsert(formatted, { onConflict: 'id' });
+
+        if (error) {
+            // Detecção específica de erro de Schema Cache
+            if (error.message.includes('schema cache') || error.message.includes('cover_url')) {
+                console.error("ERRO DE SCHEMA CACHE DETECTADO.");
+                throw new Error(`O Supabase não reconheceu as novas colunas. Rode o script supabase_setup.sql novamente para recarregar o schema.`);
+            }
+            console.error(`Erro ao salvar projeto "${project.title}":`, error.message);
+            throw new Error(`Falha ao salvar "${project.title}": ${error.message}`);
+        }
+    }
+
+  } catch (error: any) {
+    console.error("Erro Crítico no Save:", error);
     throw error;
   }
 };
@@ -58,43 +120,36 @@ export const saveCasesToDB = async (cases: CaseStudy[]): Promise<void> => {
 
 export const loadTestimonialsFromDB = async (): Promise<Testimonial[] | null> => {
   try {
-    const { data, error } = await supabase
-      .from('testimonials')
-      .select('*');
-
+    const { data, error } = await supabase.from('testimonials').select('*');
     if (error) {
-      console.error("Supabase Load Testimonials Error:", error);
-      return null;
+        console.error("Load Testimonials Error:", error.message);
+        return null;
     }
     return data as Testimonial[];
   } catch (error) {
-    console.error("Connection Error:", error);
     return null;
   }
 };
 
 export const saveTestimonialsToDB = async (testimonials: Testimonial[]): Promise<void> => {
   try {
-    // Mesma lógica de sincronização: deletar removidos
     const { data: existingData } = await supabase.from('testimonials').select('id');
-    const existingIds = existingData?.map(t => t.id) || [];
-    const incomingIds = testimonials.map(t => t.id);
-    
-    const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
-    
-    if (idsToDelete.length > 0) {
-      await supabase.from('testimonials').delete().in('id', idsToDelete);
+    if (existingData) {
+        const existingIds = existingData.map((t: any) => t.id);
+        const incomingIds = testimonials.map(t => t.id);
+        const idsToDelete = existingIds.filter(id => !incomingIds.includes(id));
+        
+        if (idsToDelete.length > 0) {
+          await supabase.from('testimonials').delete().in('id', idsToDelete);
+        }
     }
 
-    if (testimonials.length > 0) {
-      const { error } = await supabase
-        .from('testimonials')
-        .upsert(testimonials, { onConflict: 'id' });
-        
-      if (error) throw error;
+    for (const t of testimonials) {
+        const { error } = await supabase.from('testimonials').upsert(t, { onConflict: 'id' });
+        if (error) throw new Error(`Erro ao salvar depoimento de ${t.author}: ${error.message}`);
     }
   } catch (error) {
-    console.error("Supabase Save Testimonials Error:", error);
+    console.error("Save Testimonials Error:", error);
     throw error;
   }
 };

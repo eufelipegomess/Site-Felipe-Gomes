@@ -28,8 +28,7 @@ dist-ssr
 .env
 .env.*
 
-# Ignore lock file to prevent Windows/Linux binary conflicts on Vercel
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-'
+# Lock files (Committing lock files is recommended for Vercel stability)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml

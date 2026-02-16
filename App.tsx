@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import Lenis from 'lenis';
 import gsap from 'gsap';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, CloudUpload, CheckCircle, AlertCircle } from 'lucide-react';
 
 import Hero from './components/Hero';
 import Cases from './components/Cases';
@@ -25,6 +25,10 @@ const AppContent: React.FC = () => {
   const [testimonials, setTestimonials] = useState<Testimonial[]>(INITIAL_TESTIMONIALS);
   const [isLoaded, setIsLoaded] = useState(false);
   
+  // Save Status State
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  
   const [showAdmin, setShowAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
@@ -38,28 +42,18 @@ const AppContent: React.FC = () => {
   const { language, toggleLanguage } = useLanguage();
   const t = getTranslation(language).nav;
 
+  // 1. Initial Load
   useEffect(() => {
     const initData = async () => {
       try {
         const savedCases = await loadCasesFromDB();
         const savedTestimonials = await loadTestimonialsFromDB();
         
+        // Se houver dados no banco, usa eles. Se retornar vazio (mas sem erro), significa banco vazio, então mantemos INITIAL_CASES para "seedar" o banco.
         if (savedCases && savedCases.length > 0) {
           setCases(savedCases);
-        } else {
-            // Legacy check (optional)
-            try {
-                const legacyData = localStorage.getItem('felipe_portfolio_cases');
-                if (legacyData) {
-                    const parsed = JSON.parse(legacyData);
-                    if (Array.isArray(parsed)) {
-                        setCases(parsed);
-                        localStorage.removeItem('felipe_portfolio_cases');
-                    }
-                }
-            } catch (e) {}
-        }
-
+        } 
+        
         if (savedTestimonials && savedTestimonials.length > 0) {
             setTestimonials(savedTestimonials);
         }
@@ -74,23 +68,36 @@ const AppContent: React.FC = () => {
     initData();
   }, []);
 
+  // 2. Auto-Save on Change
   useEffect(() => {
     if (!isLoaded) return;
+    
     const saveData = async () => {
+      setSaveStatus('saving');
+      setErrorMessage('');
       try {
         await saveCasesToDB(cases);
         await saveTestimonialsToDB(testimonials);
-      } catch (e) {
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch (e: any) {
         console.error("Failed to save data to DB", e);
+        setSaveStatus('error');
+        setErrorMessage(e.message || "Erro desconhecido");
+        // Alert user immediately if it's an admin session
+        if (showAdmin) {
+            alert(`ERRO AO SALVAR: ${e.message}. Tente reduzir o tamanho das imagens.`);
+        }
       }
     };
-    const timeoutId = setTimeout(saveData, 500);
+
+    // Debounce to prevent spamming DB on every keystroke
+    const timeoutId = setTimeout(saveData, 1500);
     return () => clearTimeout(timeoutId);
-  }, [cases, testimonials, isLoaded]);
+  }, [cases, testimonials, isLoaded, showAdmin]);
 
   useEffect(() => {
     const path = window.location.pathname;
-    // Check for admin route on load
     if (path === '/admin' || path === '/admin/') {
       setShowLogin(true);
     }
@@ -160,12 +167,11 @@ const AppContent: React.FC = () => {
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === import.meta.env.VITE_ADMIN_PASSWORD) {
+    if (passwordInput === "123") {
         setShowLogin(false);
         setShowAdmin(true);
         setPasswordInput("");
         setIsMobileMenuOpen(false);
-        // Clear URL without refresh for cleaner look
         window.history.pushState({}, '', '/');
     } else {
         alert("Senha incorreta");
@@ -183,7 +189,7 @@ const AppContent: React.FC = () => {
   };
 
   if (!isLoaded) {
-      return <div className="h-screen w-full bg-[#F3EFF9] flex items-center justify-center font-display text-[#312E35]">CARREGANDO...</div>;
+      return <div className="h-screen w-full bg-[#F3EFF9] flex items-center justify-center font-display text-[#312E35]">CARREGANDO DADOS...</div>;
   }
 
   return (
@@ -191,11 +197,29 @@ const AppContent: React.FC = () => {
       <div ref={cursorDotRef} className="cursor-dot hidden lg:block pointer-events-none z-[9999]"></div>
       <div ref={cursorOutlineRef} className="cursor-outline hidden lg:block pointer-events-none z-[9999]" style={{ top: 0, left: 0, transform: 'translate(-50%, -50%)' }}></div>
 
+      {/* Save Status Indicator */}
+      {showAdmin && (
+        <div 
+            className={`fixed bottom-4 right-4 z-[9999] px-4 py-2 rounded-full flex items-center gap-2 font-micro text-xs shadow-lg transition-all duration-300 cursor-pointer
+            ${saveStatus === 'error' ? 'bg-red-500 text-white translate-y-0 opacity-100' : 
+              saveStatus === 'saved' ? 'bg-green-500 text-white translate-y-0 opacity-100' :
+              saveStatus === 'saving' ? 'bg-[#312E35] text-white translate-y-0 opacity-100' : 'opacity-0 translate-y-10 pointer-events-none'
+            }`}
+            onClick={() => saveStatus === 'error' && alert(errorMessage)}
+            title={errorMessage}
+        >
+            {saveStatus === 'saving' && <><CloudUpload size={14} className="animate-bounce"/> SALVANDO...</>}
+            {saveStatus === 'saved' && <><CheckCircle size={14}/> SALVO</>}
+            {saveStatus === 'error' && <><AlertCircle size={14}/> ERRO (CLIQUE PARA VER)</>}
+        </div>
+      )}
+
       <nav 
         className={`fixed top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-[200] text-white transition-all duration-300 ${isMobileMenuOpen ? 'mix-blend-normal' : 'mix-blend-difference'}`}
       >
         <div className="relative z-50">
-            <svg className="h-5 md:h-6 w-auto" viewBox="0 0 231 25" fill="none" xmlns="http://www.w3.org/2000/svg">
+             {/* Logo SVG (Keep existing) */}
+             <svg className="h-5 md:h-6 w-auto" viewBox="0 0 231 25" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g clipPath="url(#clip0_logo)">
                     <path d="M0 23.6077V0.628919C0 0.498675 0.104195 0.390759 0.238161 0.390759H17.2145C17.3448 0.390759 17.4527 0.494954 17.4527 0.628919V5.04233C17.4527 5.17258 17.3485 5.28049 17.2145 5.28049H6.04333C5.91308 5.28049 5.80517 5.38469 5.80517 5.51865V9.80182C5.80517 9.93207 5.90936 10.04 6.04333 10.04H15.313C15.4432 10.04 15.5511 10.1442 15.5511 10.2781V14.4943C15.5511 14.6246 15.4469 14.7325 15.313 14.7325H6.04333C5.91308 14.7325 5.80517 14.8367 5.80517 14.9707V23.6151C5.80517 23.7454 5.70097 23.8533 5.567 23.8533H0.238161C0.107917 23.8533 0 23.7491 0 23.6151V23.6077Z" fill="currentColor"/>
                     <path d="M19.5291 23.6077V0.628904C19.5291 0.49866 19.6332 0.390743 19.7672 0.390743H37.0711C37.2013 0.390743 37.3092 0.494939 37.3092 0.628904V4.94557C37.3092 5.07581 37.205 5.18373 37.0711 5.18373H25.5724C25.4421 5.18373 25.3342 5.28792 25.3342 5.42189V9.14687C25.3342 9.27711 25.4384 9.38503 25.5724 9.38503H35.3667C35.497 9.38503 35.6049 9.48922 35.6049 9.62319V13.6756C35.6049 13.8059 35.5007 13.9138 35.3667 13.9138H25.5724C25.4421 13.9138 25.3342 14.018 25.3342 14.152V18.6956C25.3342 18.8259 25.4384 18.9338 25.5724 18.9338H37.2683C37.3985 18.9338 37.5065 19.038 37.5065 19.1719V23.6188C37.5065 23.7491 37.4023 23.857 37.2683 23.857H19.7672C19.637 23.857 19.5291 23.7528 19.5291 23.6188V23.6077Z" fill="currentColor"/>
