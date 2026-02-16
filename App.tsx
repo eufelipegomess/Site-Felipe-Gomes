@@ -133,7 +133,7 @@ const AppContent: React.FC = () => {
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === "123") {
+    if (passwordInput === import.meta.env.VITE_ADMIN_PASSWORD) {
         setShowLogin(false);
         setShowAdmin(true);
         setPasswordInput("");
