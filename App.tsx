@@ -19,8 +19,9 @@ import { loadCasesFromDB, loadTestimonialsFromDB } from './utils/db';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { getTranslation } from './utils/translations';
 
-// Helper to create URL-friendly slugs
+// Helper: Create URL-friendly slugs
 const createSlug = (text: string) => {
+  if (!text) return '';
   return text
     .toString()
     .toLowerCase()
@@ -33,18 +34,21 @@ const createSlug = (text: string) => {
     .replace(/-+$/, ""); // Trim - from end
 };
 
-// Extract inner component to use Hook
+// Inner Component
 const AppContent: React.FC = () => {
+  // Data State
   const [cases, setCases] = useState<CaseStudy[]>(INITIAL_CASES);
   const [testimonials, setTestimonials] = useState<Testimonial[]>(INITIAL_TESTIMONIALS);
   const [isLoaded, setIsLoaded] = useState(false);
   
+  // UI State
   const [showAdmin, setShowAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [selectedProject, setSelectedProject] = useState<CaseStudy | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Refs
   const cursorDotRef = useRef<HTMLDivElement>(null);
   const cursorOutlineRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -52,7 +56,7 @@ const AppContent: React.FC = () => {
   const { language, toggleLanguage } = useLanguage();
   const t = getTranslation(language).nav;
 
-  // 1. Initial Load & Refresh Function
+  // 1. Initial Data Load
   const loadData = async () => {
     try {
       const savedCases = await loadCasesFromDB();
@@ -76,45 +80,45 @@ const AppContent: React.FC = () => {
     loadData();
   }, []);
 
-  // 2. Deep Linking: Open project if URL matches /project/slug
+  // 2. Routing Logic (Consolidated)
   useEffect(() => {
-    if (isLoaded && cases.length > 0) {
+    if (!isLoaded) return;
+
+    const handleRouting = () => {
         const path = window.location.pathname;
+        
+        // Match /project/:slug
         const match = path.match(/^\/project\/(.+)$/);
         
         if (match && match[1]) {
             const slug = match[1];
             const foundProject = cases.find(c => createSlug(c.title) === slug);
+            
             if (foundProject) {
-                setSelectedProject(foundProject);
+                if (selectedProject?.id !== foundProject.id) {
+                    setSelectedProject(foundProject);
+                }
+            } else {
+                // If slug matches nothing (broken link), go home silently
+                window.history.replaceState(null, '', '/');
+                setSelectedProject(null);
             }
-        }
-    }
-  }, [isLoaded, cases]);
-
-  // 3. Handle Browser Back/Forward Buttons
-  useEffect(() => {
-    const handlePopState = () => {
-        const path = window.location.pathname;
-        const match = path.match(/^\/project\/(.+)$/);
-        
-        if (match && match[1]) {
-             const slug = match[1];
-             const foundProject = cases.find(c => createSlug(c.title) === slug);
-             if (foundProject) {
-                 setSelectedProject(foundProject);
-             }
-        } else {
-            // If URL is root or anything else, close modal
-            setSelectedProject(null);
+        } else if (path === '/' || path === '') {
+            if (selectedProject !== null) {
+                setSelectedProject(null);
+            }
         }
     };
 
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [cases]);
+    // Run on initial load (after data is ready)
+    handleRouting();
 
-  // Admin Access Check
+    // Listen for browser Back/Forward
+    window.addEventListener('popstate', handleRouting);
+    return () => window.removeEventListener('popstate', handleRouting);
+  }, [isLoaded, cases, selectedProject]); // Depend on 'selectedProject' to prevent unnecessary sets
+
+  // 3. Admin Route Check
   useEffect(() => {
     const path = window.location.pathname;
     if (path === '/admin' || path === '/admin/') {
@@ -122,12 +126,20 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Smooth Scroll
+  // 4. Smooth Scroll (Lenis)
   useEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
     });
+    
+    // Stop Lenis when modal is open to prevent background scrolling
+    if (selectedProject || showAdmin) {
+        lenis.stop();
+    } else {
+        lenis.start();
+    }
+
     function raf(time: number) {
       lenis.raf(time);
       requestAnimationFrame(raf);
@@ -136,9 +148,9 @@ const AppContent: React.FC = () => {
     return () => {
       lenis.destroy();
     };
-  }, []);
+  }, [selectedProject, showAdmin]);
 
-  // Custom Cursor
+  // 5. Custom Cursor
   useEffect(() => {
     const moveCursor = (e: MouseEvent) => {
         const { clientX, clientY } = e;
@@ -161,7 +173,7 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('mousemove', moveCursor);
   }, []);
 
-  // Mobile Menu Animation
+  // 6. Mobile Menu Animation
   useEffect(() => {
     if (!mobileMenuRef.current) return;
     if (isMobileMenuOpen) {
@@ -187,6 +199,7 @@ const AppContent: React.FC = () => {
     }
   }, [isMobileMenuOpen]);
 
+  // Handlers
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === "123") {
@@ -194,7 +207,8 @@ const AppContent: React.FC = () => {
         setShowAdmin(true);
         setPasswordInput("");
         setIsMobileMenuOpen(false);
-        window.history.pushState({}, '', '/');
+        // Clear URL if it was /admin
+        window.history.pushState(null, '', '/');
     } else {
         alert("Senha incorreta");
     }
@@ -202,31 +216,50 @@ const AppContent: React.FC = () => {
 
   const scrollToSection = (id: string) => {
     setIsMobileMenuOpen(false);
-    const element = document.getElementById(id);
-    if (element) {
-      setTimeout(() => {
-          element.scrollIntoView({ behavior: 'smooth' });
-      }, 300);
+    
+    // If inside a project, close it first then scroll
+    if (selectedProject) {
+        handleCloseProject();
+        setTimeout(() => {
+            const element = document.getElementById(id);
+            if (element) element.scrollIntoView({ behavior: 'smooth' });
+        }, 500);
+    } else {
+        const element = document.getElementById(id);
+        if (element) {
+             // Small delay to allow menu closing animation
+            setTimeout(() => {
+                element.scrollIntoView({ behavior: 'smooth' });
+            }, 300);
+        }
     }
   };
 
-  // --- NAVIGATION HANDLERS WITH URL SYNC ---
+  // --- NAVIGATION ACTIONS ---
 
   const handleOpenProject = (project: CaseStudy) => {
     const slug = createSlug(project.title);
-    // Push new state with URL
+    // Add to history
     window.history.pushState({ projectId: project.id }, '', `/project/${slug}`);
     setSelectedProject(project);
+    // Reset scroll just in case
+    window.scrollTo(0, 0);
   };
 
   const handleCloseProject = () => {
-    // Return to home URL
-    window.history.pushState({}, '', '/');
+    // Go back to root
+    window.history.pushState(null, '', '/');
     setSelectedProject(null);
   };
 
   if (!isLoaded) {
-      return <div className="h-screen w-full bg-[#F3EFF9] flex items-center justify-center font-display text-[#312E35]">CARREGANDO DADOS...</div>;
+      return (
+        <div className="h-screen w-full bg-[#F3EFF9] flex items-center justify-center font-display text-[#312E35]">
+            <div className="flex flex-col items-center gap-4">
+                <span className="text-xl tracking-widest">CARREGANDO</span>
+            </div>
+        </div>
+      );
   }
 
   return (
@@ -237,7 +270,7 @@ const AppContent: React.FC = () => {
       <nav 
         className={`fixed top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-[200] text-white transition-all duration-300 ${isMobileMenuOpen ? 'mix-blend-normal' : 'mix-blend-difference'}`}
       >
-        <div className="relative z-50">
+        <div className="relative z-50 cursor-pointer" onClick={() => scrollToSection('top')}>
              {/* Logo SVG */}
              <svg className="h-5 md:h-6 w-auto" viewBox="0 0 231 25" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g clipPath="url(#clip0_logo)">
@@ -264,7 +297,7 @@ const AppContent: React.FC = () => {
         <div className="hidden md:flex gap-6 font-micro items-center">
             <button onClick={() => scrollToSection('cases')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.cases}</button>
             <button onClick={() => scrollToSection('feedbacks')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.clients}</button>
-            <button onClick={() => scrollToSection('sobre')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.about}</button>
+            <button onClick={() => scrollToSection('about')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.about}</button>
             <button onClick={() => scrollToSection('processo')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.process}</button>
             <button onClick={() => scrollToSection('contato')} className="hover:text-[#ACA4BC] transition-colors uppercase">{t.contact}</button>
             
@@ -294,7 +327,7 @@ const AppContent: React.FC = () => {
         <div className="flex flex-col gap-8 text-center font-display text-4xl text-[#F3EFF9]">
             <button onClick={() => scrollToSection('cases')} className="hover:text-[#8C6EB7] transition-colors">{t.cases}</button>
             <button onClick={() => scrollToSection('feedbacks')} className="hover:text-[#8C6EB7] transition-colors">{t.clients}</button>
-            <button onClick={() => scrollToSection('sobre')} className="hover:text-[#8C6EB7] transition-colors">{t.about}</button>
+            <button onClick={() => scrollToSection('about')} className="hover:text-[#8C6EB7] transition-colors">{t.about}</button>
             <button onClick={() => scrollToSection('processo')} className="hover:text-[#8C6EB7] transition-colors">{t.process}</button>
             <button onClick={() => scrollToSection('contato')} className="hover:text-[#8C6EB7] transition-colors">{t.contact}</button>
             <button onClick={() => { toggleLanguage(); setIsMobileMenuOpen(false); }} className="hover:text-[#8C6EB7] transition-colors mt-8 text-2xl font-sans">
@@ -327,7 +360,7 @@ const AppContent: React.FC = () => {
         </div>
       )}
 
-      <main>
+      <main id="top">
         <Hero />
         <Cases cases={cases} onViewProject={handleOpenProject} />
         <Feedbacks testimonials={testimonials} />
