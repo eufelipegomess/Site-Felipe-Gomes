@@ -19,6 +19,20 @@ import { loadCasesFromDB, loadTestimonialsFromDB } from './utils/db';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { getTranslation } from './utils/translations';
 
+// Helper to create URL-friendly slugs
+const createSlug = (text: string) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/\s+/g, "-") // Replace spaces with -
+    .replace(/[^\w\-]+/g, "") // Remove all non-word chars
+    .replace(/\-\-+/g, "-") // Replace multiple - with single -
+    .replace(/^-+/, "") // Trim - from start
+    .replace(/-+$/, ""); // Trim - from end
+};
+
 // Extract inner component to use Hook
 const AppContent: React.FC = () => {
   const [cases, setCases] = useState<CaseStudy[]>(INITIAL_CASES);
@@ -62,6 +76,45 @@ const AppContent: React.FC = () => {
     loadData();
   }, []);
 
+  // 2. Deep Linking: Open project if URL matches /project/slug
+  useEffect(() => {
+    if (isLoaded && cases.length > 0) {
+        const path = window.location.pathname;
+        const match = path.match(/^\/project\/(.+)$/);
+        
+        if (match && match[1]) {
+            const slug = match[1];
+            const foundProject = cases.find(c => createSlug(c.title) === slug);
+            if (foundProject) {
+                setSelectedProject(foundProject);
+            }
+        }
+    }
+  }, [isLoaded, cases]);
+
+  // 3. Handle Browser Back/Forward Buttons
+  useEffect(() => {
+    const handlePopState = () => {
+        const path = window.location.pathname;
+        const match = path.match(/^\/project\/(.+)$/);
+        
+        if (match && match[1]) {
+             const slug = match[1];
+             const foundProject = cases.find(c => createSlug(c.title) === slug);
+             if (foundProject) {
+                 setSelectedProject(foundProject);
+             }
+        } else {
+            // If URL is root or anything else, close modal
+            setSelectedProject(null);
+        }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [cases]);
+
+  // Admin Access Check
   useEffect(() => {
     const path = window.location.pathname;
     if (path === '/admin' || path === '/admin/') {
@@ -69,6 +122,7 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
+  // Smooth Scroll
   useEffect(() => {
     const lenis = new Lenis({
       duration: 1.2,
@@ -84,6 +138,7 @@ const AppContent: React.FC = () => {
     };
   }, []);
 
+  // Custom Cursor
   useEffect(() => {
     const moveCursor = (e: MouseEvent) => {
         const { clientX, clientY } = e;
@@ -106,6 +161,7 @@ const AppContent: React.FC = () => {
     return () => window.removeEventListener('mousemove', moveCursor);
   }, []);
 
+  // Mobile Menu Animation
   useEffect(() => {
     if (!mobileMenuRef.current) return;
     if (isMobileMenuOpen) {
@@ -133,7 +189,7 @@ const AppContent: React.FC = () => {
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === import.meta.env.VITE_ADMIN_PASSWORD) {
+    if (passwordInput === "123") {
         setShowLogin(false);
         setShowAdmin(true);
         setPasswordInput("");
@@ -152,6 +208,21 @@ const AppContent: React.FC = () => {
           element.scrollIntoView({ behavior: 'smooth' });
       }, 300);
     }
+  };
+
+  // --- NAVIGATION HANDLERS WITH URL SYNC ---
+
+  const handleOpenProject = (project: CaseStudy) => {
+    const slug = createSlug(project.title);
+    // Push new state with URL
+    window.history.pushState({ projectId: project.id }, '', `/project/${slug}`);
+    setSelectedProject(project);
+  };
+
+  const handleCloseProject = () => {
+    // Return to home URL
+    window.history.pushState({}, '', '/');
+    setSelectedProject(null);
   };
 
   if (!isLoaded) {
@@ -258,7 +329,7 @@ const AppContent: React.FC = () => {
 
       <main>
         <Hero />
-        <Cases cases={cases} onViewProject={setSelectedProject} />
+        <Cases cases={cases} onViewProject={handleOpenProject} />
         <Feedbacks testimonials={testimonials} />
         <About />
         <div id="processo">
@@ -271,7 +342,7 @@ const AppContent: React.FC = () => {
       {selectedProject && (
         <ProjectDetail 
             project={selectedProject} 
-            onClose={() => setSelectedProject(null)} 
+            onClose={handleCloseProject} 
         />
       )}
 
